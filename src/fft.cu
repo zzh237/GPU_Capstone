@@ -52,6 +52,13 @@ void saveToTextFile(const std::string& title, const double* signal, std::size_t 
 //     }
 // }
 
+__global__ void applyFilter(cufftDoubleComplex* d_spectrum, cufftDoubleComplex* filterSpectrum, int SIZE) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < SIZE) {
+        d_spectrum[idx].x *= filterSpectrum[idx].x;
+        d_spectrum[idx].y *= filterSpectrum[idx].x; // Assuming filterSpectrum[idx].y is 0
+    }
+}
 
 __global__ void createFilterSpectrum(cufftComplex* filterSpectrum, int SIZE, int cutoffIdx) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -153,8 +160,9 @@ int main() {
     cufftDoubleComplex* d_filterSpectrum;
     cudaMalloc(&d_filterSpectrum, SIZE * sizeof(cufftComplex));
     int cutoffIdx = (int)(SIZE * f1 / sampleRate);
-    createFilterSpectrum<<<(SIZE + 255) / 256, 256>>>(d_filterSpectrum, SIZE, cutoffIdx);
-
+    // createFilterSpectrum<<<(SIZE + 255) / 256, 256>>>(d_filterSpectrum, SIZE, cutoffIdx);
+    applyFilter<<<(SIZE + 255) / 256, 256>>>(d_spectrum, d_filterSpectrum, SIZE);
+    cudaDeviceSynchronize();
     // Multiply the signal spectrum with the filter spectrum on the GPU
     // Skipping this for simplicity
 
