@@ -52,15 +52,23 @@ void saveToTextFile(const std::string& title, const double* signal, std::size_t 
 //     }
 // }
 
+__global__ void applyFilter(cufftDoubleComplex* d_signalSpectrum, const cufftDoubleComplex* d_filterSpectrum, int SIZE) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < SIZE) {
+        // Multiply the signal spectrum by the filter spectrum (element-wise multiplication)
+        d_signalSpectrum[idx].x *= d_filterSpectrum[idx].x;
+        d_signalSpectrum[idx].y *= d_filterSpectrum[idx].x;
+    }
+}
 
 __global__ void createFilterSpectrum(cufftDoubleComplex* filterSpectrum, int SIZE, int cutoffIdx) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < SIZE) {
-        if (idx > cutoffIdx) {
+        // Apply the filter symmetrically for the positive and negative frequencies
+        if (idx > cutoffIdx && idx < SIZE - cutoffIdx) {
             filterSpectrum[idx].x = 0; // Zero out the real component for frequencies above the cutoff
             filterSpectrum[idx].y = 0; // Zero out the imaginary component for frequencies above the cutoff
         } else {
-            // Optionally, apply a window function here if you want a smoother transition
             filterSpectrum[idx].x = 1; // Pass the frequency component unchanged
             filterSpectrum[idx].y = 0;
         }
@@ -151,10 +159,12 @@ int main() {
 
     cufftDoubleComplex* d_spectrum = computeFFTWithCUDA(sum.data(), SIZE);
     cufftDoubleComplex* d_filterSpectrum;
-    cudaMalloc(&d_filterSpectrum, SIZE * sizeof(cufftComplex));
+    cudaMalloc(&d_filterSpectrum, SIZE * sizeof(cufftDoubleComplex));
     int cutoffIdx = (int)(SIZE * f1 / sampleRate);
     createFilterSpectrum<<<(SIZE + 255) / 256, 256>>>(d_filterSpectrum, SIZE, cutoffIdx);
-
+    cudaDeviceSynchronize(); 
+    applyFilter<<<(SIZE + 255) / 256, 256>>>(d_spectrum, d_filterSpectrum, SIZE);
+    cudaDeviceSynchronize();
     // Multiply the signal spectrum with the filter spectrum on the GPU
     // Skipping this for simplicity
 
