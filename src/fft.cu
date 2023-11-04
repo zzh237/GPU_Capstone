@@ -53,7 +53,7 @@ void saveToTextFile(const std::string& title, const double* signal, std::size_t 
 // }
 
 
-__global__ void createFilterSpectrum(cufftComplex* filterSpectrum, int SIZE, int cutoffIdx) {
+__global__ void createFilterSpectrum(cufftDoubleComplex* filterSpectrum, int SIZE, int cutoffIdx) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < SIZE) {
         if (idx > cutoffIdx) {
