@@ -10,11 +10,11 @@ COMPILER_FLAGS=-I/u/local/cuda/11.8/include -I/u/local/cuda/11.8/lib64 \
 	-g
 
 # Name of the output executable
-OUTPUT=filter
+OUTPUT=fft
 
 # Source and object files
-SRC=filter.cu
-OBJ=bin/filter.o
+SRC=src/fft.cu
+OBJ=bin/fft.o
 
 # Build rule
 build: bin/$(OUTPUT)

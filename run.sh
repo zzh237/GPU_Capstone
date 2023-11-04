@@ -1,1 +1,1 @@
-./bin/filter
+./bin/fft
