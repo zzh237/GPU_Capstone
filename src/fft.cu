@@ -4,6 +4,7 @@
 #include <cufft.h>
 #include <iostream>
 #include <vector>
+#include <algorithm> 
 
 // Constants for the input signal
 const std::size_t SIZE = 1024;
@@ -43,7 +44,7 @@ void saveToTextFile(const std::string& title, const double* signal, std::size_t 
 }
 
 // CUDA kernel for creating the filter spectrum
-__global__ void createFilterSpectrum(cufftComplex* filter, int size, int cutoffIdx) {
+__global__ void createFilterSpectrum(cufftDoubleComplex* filter, int size, int cutoffIdx) { // Change to cufftDoubleComplex
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx < size) {
         filter[idx].x = (idx < cutoffIdx) ? 1.0f : 0.0f;
@@ -51,37 +52,45 @@ __global__ void createFilterSpectrum(cufftComplex* filter, int size, int cutoffI
     }
 }
 
-cufftComplex* computeFFTWithCUDA(double* signal, std::size_t SIZE) {
+cufftDoubleComplex* computeFFTWithCUDA(double* signal, std::size_t SIZE) { // Change return type to cufftDoubleComplex
     cufftHandle plan;
     cufftDoubleComplex* d_signal;
-    cufftComplex* d_spectrum;
+    cufftDoubleComplex* d_spectrum; // Change to cufftDoubleComplex
 
+    // Allocate memory
     cudaMalloc(&d_signal, SIZE * sizeof(cufftDoubleComplex));
-    cudaMalloc(&d_spectrum, SIZE * sizeof(cufftComplex));
+    cudaMalloc(&d_spectrum, SIZE * sizeof(cufftDoubleComplex));
 
+    // Transfer the signal to the GPU
     cudaMemcpy(d_signal, signal, SIZE * sizeof(double), cudaMemcpyHostToDevice);
 
+    // Create FFT plan and compute FFT
     cufftPlan1d(&plan, SIZE, CUFFT_D2Z, 1);
     cufftExecD2Z(plan, (cufftDoubleReal*)d_signal, d_spectrum);
 
+    // Cleanup
     cudaFree(d_signal);
     cufftDestroy(plan);
 
     return d_spectrum;
 }
 
-double* computeInverseFFTWithCUDA(cufftComplex* d_spectrum, std::size_t SIZE) {
+double* computeInverseFFTWithCUDA(cufftDoubleComplex* d_spectrum, std::size_t SIZE) { // Change parameter type to cufftDoubleComplex
     cufftHandle plan;
-    cufftDoubleComplex* d_filteredSignal;
+    cufftDoubleComplex* d_filteredSignal; // Change to cufftDoubleComplex
     double* h_filteredSignal = new double[SIZE];
 
+    // Allocate memory for the filtered signal on the GPU
     cudaMalloc(&d_filteredSignal, SIZE * sizeof(cufftDoubleComplex));
 
+    // Create inverse FFT plan and compute inverse FFT
     cufftPlan1d(&plan, SIZE, CUFFT_Z2D, 1);
     cufftExecZ2D(plan, d_spectrum, (cufftDoubleReal*)d_filteredSignal);
 
+    // Transfer the filtered signal back to the CPU
     cudaMemcpy(h_filteredSignal, d_filteredSignal, SIZE * sizeof(double), cudaMemcpyDeviceToHost);
 
+    // Cleanup
     cudaFree(d_filteredSignal);
     cufftDestroy(plan);
 
