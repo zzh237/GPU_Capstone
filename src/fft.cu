@@ -44,11 +44,26 @@ void saveToTextFile(const std::string& title, const double* signal, std::size_t 
 }
 
 // CUDA kernel for creating the filter spectrum
-__global__ void createFilterSpectrum(cufftDoubleComplex* filter, int size, int cutoffIdx) { // Change to cufftDoubleComplex
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    if (idx < size) {
-        filter[idx].x = (idx < cutoffIdx) ? 1.0f : 0.0f;
-        filter[idx].y = 0.0f;
+// __global__ void createFilterSpectrum(cufftDoubleComplex* filter, int size, int cutoffIdx) { // Change to cufftDoubleComplex
+//     int idx = threadIdx.x + blockIdx.x * blockDim.x;
+//     if (idx < size) {
+//         filter[idx].x = (idx < cutoffIdx) ? 1.0f : 0.0f;
+//         filter[idx].y = 0.0f;
+//     }
+// }
+
+
+__global__ void createFilterSpectrum(cufftComplex* filterSpectrum, int SIZE, int cutoffIdx) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < SIZE) {
+        if (idx > cutoffIdx) {
+            filterSpectrum[idx].x = 0; // Zero out the real component for frequencies above the cutoff
+            filterSpectrum[idx].y = 0; // Zero out the imaginary component for frequencies above the cutoff
+        } else {
+            // Optionally, apply a window function here if you want a smoother transition
+            filterSpectrum[idx].x = 1; // Pass the frequency component unchanged
+            filterSpectrum[idx].y = 0;
+        }
     }
 }
 
