@@ -25,4 +25,4 @@ Input and output examples can be found in `data/original_signal.ppm` and `data/f
   <img src="https://github.com/zzh237/GPU_Capstone/blob/main/filtered_signal.png" width="45%" /> 
 </p>
 
-> **Note**: For direct visualization on GitHub, consider converting the `.ppm` files to a more universally supported format such as `.png` or `.jpg`. Alternatively, you can provide direct download links to the `.ppm` files so users can open them using appropriate software.
+
