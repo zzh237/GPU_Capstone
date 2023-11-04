@@ -134,7 +134,7 @@ int main() {
     //saveToTextFile("Signal waveform before filtration", sum.data(), SIZE);
     saveAsPPM("original_signal", sum);
 
-    cufftComplex* d_spectrum = computeFFTWithCUDA(sum.data(), SIZE);
+    cufftDoubleComplex* d_spectrum = computeFFTWithCUDA(sum.data(), SIZE);
     cufftComplex* d_filterSpectrum;
     cudaMalloc(&d_filterSpectrum, SIZE * sizeof(cufftComplex));
     int cutoffIdx = (int)(SIZE * f1 / sampleRate);
