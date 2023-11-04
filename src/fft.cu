@@ -1,49 +1,44 @@
 #include <cmath>
 #include <fstream>
-#include <vector>
-#include <iostream>
 #include <cuda_runtime.h>
 #include <cufft.h>
-#include "../lib/matplotlib-cpp/matplotlibcpp.h"
-
-namespace plt = matplotlibcpp;
+#include <iostream>
+#include <vector>
 
 // Constants for the input signal
-const std::size_t SIZE = 1024; // Total number of samples
-const double sampleRate = 2000.0; // Sampling rate
-const double T = 1.0 / sampleRate; // Sampling interval
-const double f1 = 96.0; // Frequency of the first sine wave
-const double f2 = 813.0; // Frequency of the second sine wave
-const double t_max = SIZE * T; // Total time duration of the signal
-const double f_lp = 450.0;  // An example cutoff frequency
-const double sampleFreq = sampleRate;
+const std::size_t SIZE = 1024;
+const double sampleRate = 2000.0;
+const double T = 1.0 / sampleRate;
+const double f1 = 96.0;
+const double f2 = 813.0;
+const double t_max = SIZE * T;
 
 // Signal generation function
 std::vector<double> generateSignal(std::size_t size) {
     std::vector<double> signal(size);
     for (std::size_t i = 0; i < size; ++i) {
-        double t = i * T; // Current time
+        double t = i * T;
         signal[i] = 32 * sin(2 * M_PI * f1 * t) + 8 * sin(2 * M_PI * f2 * t);
     }
     return signal;
 }
 
 void saveToTextFile(const std::string& title, const double* signal, std::size_t size) {
-    std::ofstream outFile("output.txt", std::ios_base::app); // Open in append mode
+    std::ofstream outFile("output.txt", std::ios_base::app);
     outFile << title << "\n";
 
     double max_val = *std::max_element(signal, signal + size);
     double min_val = *std::min_element(signal, signal + size);
 
     for (std::size_t i = 0; i < size; ++i) {
-        int num_asterisks = static_cast<int>((signal[i] - min_val) / (max_val - min_val) * 50); // Scale to 50 for visualization
+        int num_asterisks = static_cast<int>((signal[i] - min_val) / (max_val - min_val) * 50);
         for (int j = 0; j < num_asterisks; ++j) {
             outFile << "*";
         }
         outFile << "\n";
     }
 
-    outFile << "\n\n"; // Separate plots
+    outFile << "\n\n";
     outFile.close();
 }
 
@@ -56,39 +51,19 @@ __global__ void createFilterSpectrum(cufftComplex* filter, int size, int cutoffI
     }
 }
 
-
-// Simple textual plotter
-void plot(const std::string& title, const double* data, std::size_t size, double threshold = 10.0) {
-    std::cout << title << "\n";
-
-    for (std::size_t i = 0; i < size; ++i) {
-        if (std::abs(data[i]) > threshold) {
-            std::cout << "*";
-        } else {
-            std::cout << " ";
-        }
-    }
-    std::cout << "\n";
-}
-
-
 cufftComplex* computeFFTWithCUDA(double* signal, std::size_t SIZE) {
     cufftHandle plan;
     cufftDoubleComplex* d_signal;
     cufftComplex* d_spectrum;
 
-    // Allocate memory
     cudaMalloc(&d_signal, SIZE * sizeof(cufftDoubleComplex));
     cudaMalloc(&d_spectrum, SIZE * sizeof(cufftComplex));
 
-    // Transfer the signal to the GPU
     cudaMemcpy(d_signal, signal, SIZE * sizeof(double), cudaMemcpyHostToDevice);
 
-    // Create FFT plan and compute FFT
     cufftPlan1d(&plan, SIZE, CUFFT_D2Z, 1);
     cufftExecD2Z(plan, (cufftDoubleReal*)d_signal, d_spectrum);
 
-    // Cleanup
     cudaFree(d_signal);
     cufftDestroy(plan);
 
@@ -100,60 +75,71 @@ double* computeInverseFFTWithCUDA(cufftComplex* d_spectrum, std::size_t SIZE) {
     cufftDoubleComplex* d_filteredSignal;
     double* h_filteredSignal = new double[SIZE];
 
-    // Allocate memory for the filtered signal on the GPU
     cudaMalloc(&d_filteredSignal, SIZE * sizeof(cufftDoubleComplex));
 
-    // Create inverse FFT plan and compute inverse FFT
     cufftPlan1d(&plan, SIZE, CUFFT_Z2D, 1);
     cufftExecZ2D(plan, d_spectrum, (cufftDoubleReal*)d_filteredSignal);
 
-    // Transfer the filtered signal back to the CPU
     cudaMemcpy(h_filteredSignal, d_filteredSignal, SIZE * sizeof(double), cudaMemcpyDeviceToHost);
 
-    // Cleanup
     cudaFree(d_filteredSignal);
     cufftDestroy(plan);
 
     return h_filteredSignal;
 }
 
+void saveAsPPM(const std::string& filename, const std::vector<double>& data) {
+    int width = data.size();
+    int height = 256;
+
+    std::vector<std::vector<int>> image(height, std::vector<int>(width, 255));
+
+    double max_val = *std::max_element(data.begin(), data.end());
+    double min_val = *std::min_element(data.begin(), data.end());
+
+    for (int x = 0; x < width; x++) {
+        int y = static_cast<int>((data[x] - min_val) / (max_val - min_val) * (height - 1));
+        for (int j = 0; j <= y; j++) {
+            image[j][x] = 0;
+        }
+    }
+
+    std::ofstream outFile(filename + ".ppm");
+    outFile << "P2\n" << width << " " << height << "\n255\n";
+
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            outFile << image[i][j] << " ";
+        }
+        outFile << "\n";
+    }
+}
+
 int main() {
-    // Generate the signal
     std::vector<double> sum = generateSignal(SIZE);
 
-    // Save and plot the original signal
+    // Save the original signal as PPM
     //saveToTextFile("Signal waveform before filtration", sum.data(), SIZE);
-    plt::figure();
-    plt::plot(sum);
-    plt::title("Signal waveform before filtration");
-    plt::save("original_signal.png");
+    saveAsPPM("original_signal", sum);
 
-    // Compute FFT using CUDA
     cufftComplex* d_spectrum = computeFFTWithCUDA(sum.data(), SIZE);
-
-    // Create the filter spectrum on the GPU
     cufftComplex* d_filterSpectrum;
     cudaMalloc(&d_filterSpectrum, SIZE * sizeof(cufftComplex));
-    int cutoffIdx = (int)(SIZE * f_lp / sampleFreq);
+    int cutoffIdx = (int)(SIZE * f1 / sampleRate);
     createFilterSpectrum<<<(SIZE + 255) / 256, 256>>>(d_filterSpectrum, SIZE, cutoffIdx);
 
-    // Multiply the signal spectrum with the filter spectrum on the GPU (this step is skipped for now)
+    // Multiply the signal spectrum with the filter spectrum on the GPU
+    // Skipping this for simplicity
 
-    // Compute inverse FFT using CUDA to get the filtered signal
     double* filteredSignal = computeInverseFFTWithCUDA(d_spectrum, SIZE);
 
-    // Save and plot the filtered signal
+    // Save the filtered signal as PPM
+    std::vector<double> filteredSignalVec(filteredSignal, filteredSignal + SIZE);
     //saveToTextFile("Signal waveform after filtration", filteredSignal, SIZE);
-    plt::figure();
-    plt::plot(std::vector<double>(filteredSignal, filteredSignal + SIZE));
-    plt::title("Signal waveform after filtration");
-    plt::save("filtered_signal.png");
+    saveAsPPM("filtered_signal", filteredSignalVec);
 
-    // Clean up resources
     cudaFree(d_spectrum);
-    cudaFree(d_filterSpectrum);
     delete[] filteredSignal;
 
     return 0;
 }
-
