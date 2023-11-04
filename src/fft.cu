@@ -1,9 +1,12 @@
 #include <cmath>
 #include <fstream>
+#include <vector>
+#include <iostream>
 #include <cuda_runtime.h>
 #include <cufft.h>
-#include <iostream>
-#include <vector>
+#include "../lib/matplotlib-cpp/matplotlibcpp.h"
+
+namespace plt = matplotlibcpp;
 
 // Constants for the input signal
 const std::size_t SIZE = 1024; // Total number of samples
@@ -12,6 +15,8 @@ const double T = 1.0 / sampleRate; // Sampling interval
 const double f1 = 96.0; // Frequency of the first sine wave
 const double f2 = 813.0; // Frequency of the second sine wave
 const double t_max = SIZE * T; // Total time duration of the signal
+const double f_lp = 450.0;  // An example cutoff frequency
+const double sampleFreq = sampleRate;
 
 // Signal generation function
 std::vector<double> generateSignal(std::size_t size) {
@@ -113,13 +118,18 @@ double* computeInverseFFTWithCUDA(cufftComplex* d_spectrum, std::size_t SIZE) {
 }
 
 int main() {
-    // ... [The initial part of your code remains unchanged]
-	std::vector<double> sum = generateSignal(SIZE);
+    // Generate the signal
+    std::vector<double> sum = generateSignal(SIZE);
 
-	//plot("Signal waveform before filtration", sum.toArray(), SIZE);
-    saveToTextFile("Signal waveform before filtration", sum.data(), SIZE);
-	// Compute FFT using CUDA
-    cufftComplex* d_spectrum = computeFFTWithCUDA(sum.toArray(), SIZE);
+    // Save and plot the original signal
+    //saveToTextFile("Signal waveform before filtration", sum.data(), SIZE);
+    plt::figure();
+    plt::plot(sum);
+    plt::title("Signal waveform before filtration");
+    plt::save("original_signal.png");
+
+    // Compute FFT using CUDA
+    cufftComplex* d_spectrum = computeFFTWithCUDA(sum.data(), SIZE);
 
     // Create the filter spectrum on the GPU
     cufftComplex* d_filterSpectrum;
@@ -127,19 +137,21 @@ int main() {
     int cutoffIdx = (int)(SIZE * f_lp / sampleFreq);
     createFilterSpectrum<<<(SIZE + 255) / 256, 256>>>(d_filterSpectrum, SIZE, cutoffIdx);
 
-    // Multiply the signal spectrum with the filter spectrum on the GPU
-    // This can be achieved using cublas or by writing a custom kernel. 
-    // For the sake of simplicity, I'm skipping this step but it's essential for the filtration.
+    // Multiply the signal spectrum with the filter spectrum on the GPU (this step is skipped for now)
 
     // Compute inverse FFT using CUDA to get the filtered signal
     double* filteredSignal = computeInverseFFTWithCUDA(d_spectrum, SIZE);
 
-    // ... [Your plotting and final code]
-	//plot("Signal waveform after filtration", filteredSignal, SIZE);
-	saveToTextFile("Signal waveform after filtration", filteredSignal, SIZE);
+    // Save and plot the filtered signal
+    //saveToTextFile("Signal waveform after filtration", filteredSignal, SIZE);
+    plt::figure();
+    plt::plot(std::vector<double>(filteredSignal, filteredSignal + SIZE));
+    plt::title("Signal waveform after filtration");
+    plt::save("filtered_signal.png");
 
     // Clean up resources
     cudaFree(d_spectrum);
+    cudaFree(d_filterSpectrum);
     delete[] filteredSignal;
 
     return 0;
