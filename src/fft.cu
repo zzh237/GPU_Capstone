@@ -135,7 +135,7 @@ int main() {
     saveAsPPM("original_signal", sum);
 
     cufftDoubleComplex* d_spectrum = computeFFTWithCUDA(sum.data(), SIZE);
-    cufftComplex* d_filterSpectrum;
+    cufftDoubleComplex* d_filterSpectrum;
     cudaMalloc(&d_filterSpectrum, SIZE * sizeof(cufftComplex));
     int cutoffIdx = (int)(SIZE * f1 / sampleRate);
     createFilterSpectrum<<<(SIZE + 255) / 256, 256>>>(d_filterSpectrum, SIZE, cutoffIdx);
