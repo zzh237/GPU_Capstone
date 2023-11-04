@@ -1,1 +1,1 @@
-./bin/fft
+./bin/fft.exe
